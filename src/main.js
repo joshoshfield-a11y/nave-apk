@@ -426,6 +426,30 @@ function footstep() {
   s.connect(f); f.connect(g); g.connect(masterGain); s.start(t);
 }
 
+
+// ---------- shared presence: MQTT bus (graceful solo when unreachable) ----------
+const mp = { cid: 'u' + Math.random().toString(36).slice(2, 8), cli: null, remote: null,
+  connected: false, url: 0, t: 0, greeted: false };
+const BROKERS = ['wss://test.mosquitto.org:8081/mqtt', 'wss://broker.emqx.io:8084/mqtt',
+                 'wss://broker.hivemq.com:8884/mqtt'];
+function mpConnect() {
+  if (typeof mqtt === 'undefined' || mp.url >= BROKERS.length) return;
+  try {
+    mp.cli = mqtt.connect(BROKERS[mp.url], { clientId: 'nave-' + mp.cid,
+      reconnectPeriod: 4000, connectTimeout: 9000 });
+  } catch (e) { mp.url++; setTimeout(mpConnect, 1200); return; }
+  mp.cli.on('connect', () => { mp.connected = true; mp.cli.subscribe('nave/v1/me'); });
+  mp.cli.on('message', (topic, payload) => {
+    try { mp.remote = JSON.parse(payload.toString()); } catch (e) {}
+  });
+  mp.cli.on('error', () => { mp.url++; try { mp.cli.end(true); } catch (e) {} setTimeout(mpConnect, 1500); });
+}
+mpConnect();
+const wisp = new THREE.Sprite(new THREE.SpriteMaterial({ map: echoTex,
+  color: new THREE.Color(2.6, 2.6, 2.9), blending: THREE.AdditiveBlending,
+  depthWrite: false, transparent: true, opacity: 0 }));
+wisp.scale.set(0.9, 0.9, 1); world.add(wisp);
+
 // ---------- postfx + loop ----------
 const postfx = new PostFX(renderer, { threshold: 0.5, bloomStrength: 1.25, scale: 0.5 });
 postfx.setSize(renderer.domElement.width, renderer.domElement.height);
@@ -440,7 +464,7 @@ addEventListener('resize', () => {
 let frames = 0, fpsTime = 0, fps = 0;
 const clock = new THREE.Clock();
 window.__gf = { ready: false, get fps() { return fps; },
-  get state() { return { lit, total: TOTAL, echoes: echoesGot, quality: qualityLevel, mode: player.mode,
+  get state() { return { lit, total: TOTAL, echoes: echoesGot, quality: qualityLevel, mp: mp.connected, remote: mp.remote, mode: player.mode,
     pos: { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2) } }; } };
 
 function attractCam(t) {
@@ -544,6 +568,33 @@ function tick() {
   }
   dustGeo.attributes.position.needsUpdate = true;
 
+  // shared presence: publish me at 2Hz, render the remote wisp
+  mp.t += dt;
+  if (mp.cli && mp.connected && mp.t > 0.5) {
+    mp.t = 0;
+    mp.cli.publish('nave/v1/user/' + mp.cid, JSON.stringify({
+      x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2),
+      z: +player.pos.z.toFixed(2), ry: +player.yaw.toFixed(2), mode: player.mode }));
+  }
+  if (mp.remote) {
+    const d = mp.remote;
+    wisp.position.set(d.x, d.y, d.z);
+    wisp.material.opacity = Math.min(0.95, wisp.material.opacity + dt * 1.5);
+    const s = 0.85 + Math.sin(t * 2.2) * 0.08;
+    wisp.scale.set(s, s, 1);
+    if (player.mode === 'play' && !mp.greeted) {
+      const dx = player.pos.x - d.x, dy = player.pos.y - d.y, dz = player.pos.z - d.z;
+      if (dx*dx + dy*dy + dz*dz < 2.6*2.6) {
+        mp.greeted = true; bell(523, 1.6, 0.16);
+        loreEl.textContent = "the wisp regards you.";
+        loreEl.style.opacity = '0.9';
+        clearTimeout(loreTimer);
+        loreTimer = setTimeout(() => loreEl.style.opacity = '0', 4000);
+      }
+    }
+  } else {
+    wisp.material.opacity = Math.max(0, wisp.material.opacity - dt);
+  }
   postfx.render(scene, camera, t);
   if (!window.__gf.ready) window.__gf.ready = true;
 }
