@@ -126,6 +126,10 @@ for (let i = 0; i < MODULES; i++) {
       glass.position.set(side * (X_WALL + 2.5), 3.4, z - STEP/2);
       glass.rotation.y = side > 0 ? -Math.PI/2 : Math.PI/2;
       world.add(glass);
+      const shaft = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 13), shaftMat);
+      shaft.position.set(side * (X_WALL - 2.2), 6.2, z - STEP/2);
+      shaft.rotation.set(0, side > 0 ? -0.9 : 0.9, side * 0.42);
+      world.add(shaft);
     }
   }
   const col = new THREE.Group();
@@ -187,10 +191,61 @@ CANDLE_Z.forEach((z, i) => {
   flame.position.y = 1.95; flame.scale.set(0.5, 0.85, 1); g.add(flame);
   const light = new THREE.PointLight(PAL.flame, 0, 20, 1.9);
   light.position.y = 2.1; g.add(light);
+  const ember = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, color: new THREE.Color(2.4, 1.2, 0.6),
+    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+  ember.scale.set(0.09, 0.09, 1); g.add(ember);
   g.position.set(x, 0, z);
   world.add(g);
   candles.push({ g, flame, light, x, z, lit: false, dwell: 0 });
 });
+
+
+// ---------- echo wisps (collectibles) + god-ray shafts + candle embers ----------
+const echoTex = canvasTex(64, 64, (g, w, h) => {
+  const grd = g.createRadialGradient(w/2, h/2, 1, w/2, h/2, w/2);
+  grd.addColorStop(0, 'rgba(215,235,255,1)'); grd.addColorStop(0.4, 'rgba(150,190,255,0.5)');
+  grd.addColorStop(1, 'rgba(120,160,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, w, h);
+});
+const shaftTex = canvasTex(64, 256, (g, w, h) => {
+  const grd = g.createLinearGradient(0, 0, 0, h);
+  grd.addColorStop(0, 'rgba(255,190,215,0.55)'); grd.addColorStop(1, 'rgba(255,190,215,0)');
+  g.fillStyle = grd; g.beginPath();
+  g.moveTo(w*0.3, 0); g.lineTo(w*0.7, 0); g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fill();
+});
+const shaftMat = new THREE.MeshBasicMaterial({ map: shaftTex, transparent: true, opacity: 0.10,
+  blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+const echoes = [];
+const LORE = [
+  "the nave remembers every footstep.",
+  "someone prayed here, once.",
+  "the glass was blue, before the fire.",
+  "seven flames, seven names.",
+  "listen: the stone is still warm.",
+  "the architect never saw it finished.",
+  "you are not the first to carry light."];
+const loreEl = document.createElement('div');
+loreEl.setAttribute('style', 'position:fixed;bottom:9%;left:0;right:0;text-align:center;color:#bcd4ff;' +
+  'font-family:Georgia,serif;font-size:clamp(13px,3vw,18px);letter-spacing:.22em;opacity:0;' +
+  'transition:opacity 1.4s;pointer-events:none;z-index:7;text-shadow:0 0 14px rgba(120,160,255,.6)');
+document.body.appendChild(loreEl);
+let loreTimer = null, echoesGot = 0;
+for (let i = 0; i < 7; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: echoTex, color: new THREE.Color(1.5, 1.8, 2.3),
+    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
+  s.scale.set(0.55, 0.55, 1);
+  const bx = (i % 2 === 0 ? -1 : 1) * (2.5 + (i % 3)), bz = -10 - i * 12.5, by = 2.2 + (i % 3) * 1.6;
+  world.add(s);
+  echoes.push({ s, bx, bz, by, ph: i * 1.7, got: false });
+}
+function collectEcho(e) {
+  e.got = true; e.s.visible = false; echoesGot++;
+  bell(1174, 0.9, 0.14);
+  loreEl.textContent = LORE[echoes.indexOf(e)] || "";
+  loreEl.style.opacity = '0.9';
+  clearTimeout(loreTimer);
+  loreTimer = setTimeout(() => loreEl.style.opacity = '0', 4200);
+}
 
 // ---------- dust ----------
 const DUST_N = 700;
@@ -274,6 +329,7 @@ const walkTouch = false; // superseded by joystick
 const titleEl = document.getElementById('title');
 function enterPlay() {
   if (player.mode !== 'attract') return;
+  initAudio();
   player.mode = 'play';
   titleEl.style.opacity = '0';
   setTimeout(() => titleEl.style.display = 'none', 1300);
@@ -299,6 +355,7 @@ const finEl = document.getElementById('fin');
 function lightCandle(c) {
   c.lit = true; lit++;
   hud.textContent = `✦ ${lit} / ${TOTAL}`;
+  bell(620 + lit * 46, 1.4, 0.2);
   c.pop = 0;
   if (lit === TOTAL) {
     let t = 0;
@@ -306,9 +363,67 @@ function lightCandle(c) {
       t += 0.05;
       const k = Math.min(1, t);
       roseMat.color.setRGB(2.1 + 3.2 * k, 2.1 + 1.9 * k, 2.1 + 2.2 * k);
-      if (k >= 1) { clearInterval(iv); finEl.style.display = 'flex'; }
+      if (k >= 1) { clearInterval(iv); finEl.style.display = 'flex'; padSwell(); }
     }, 50);
   }
+}
+
+
+// ---------- procedural audio (WebAudio, zero assets) ----------
+let AC = null, masterGain = null, qualityLevel = 2;
+function initAudio() {
+  if (AC) { AC.resume?.(); return; }
+  try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  masterGain = AC.createGain(); masterGain.gain.value = 0.5; masterGain.connect(AC.destination);
+  const len = AC.sampleRate * 4, buf = AC.createBuffer(1, len, AC.sampleRate), dd = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) dd[i] = Math.random() * 2 - 1;
+  const wind = AC.createBufferSource(); wind.buffer = buf; wind.loop = true;
+  const bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 380; bp.Q.value = 0.6;
+  const wg = AC.createGain(); wg.gain.value = 0.03;
+  const lfo = AC.createOscillator(); lfo.frequency.value = 0.07;
+  const lfoG = AC.createGain(); lfoG.gain.value = 0.02;
+  lfo.connect(lfoG); lfoG.connect(wg.gain);
+  wind.connect(bp); bp.connect(wg); wg.connect(masterGain); wind.start(); lfo.start();
+  const padG = AC.createGain(); padG.gain.value = 0.028; padG.connect(masterGain);
+  for (const f of [110, 110.7, 164.8]) {
+    const o = AC.createOscillator(); o.type = "triangle"; o.frequency.value = f;
+    const g = AC.createGain(); g.gain.value = f > 150 ? 0.4 : 1;
+    const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 500;
+    o.connect(g); g.connect(lp); lp.connect(padG); o.start();
+  }
+}
+function bell(freq, dur, vol) {
+  if (!AC) return; dur = dur || 1.2; vol = vol || 0.2;
+  const t = AC.currentTime;
+  for (const pair of [[1, 1], [2.76, 0.4], [5.4, 0.15]]) {
+    const o = AC.createOscillator(); o.type = "sine"; o.frequency.value = freq * pair[0];
+    const g = AC.createGain();
+    g.gain.setValueAtTime(vol * pair[1], t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * (pair[0] === 1 ? 1 : 0.4));
+    o.connect(g); g.connect(masterGain); o.start(t); o.stop(t + dur + 0.1);
+  }
+}
+function padSwell() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  const g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.13, t + 2.5);
+  g.connect(masterGain);
+  for (const f of [220, 277.2, 329.6, 440]) {
+    const o = AC.createOscillator(); o.type = "sine"; o.frequency.value = f;
+    const og = AC.createGain(); og.gain.value = 0.25;
+    o.connect(og); og.connect(g); o.start(t); o.stop(t + 9);
+  }
+}
+function footstep() {
+  if (!AC) return;
+  const t = AC.currentTime, len = Math.floor(AC.sampleRate * 0.08);
+  const buf = AC.createBuffer(1, len, AC.sampleRate), dd = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) dd[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const s = AC.createBufferSource(); s.buffer = buf;
+  const f = AC.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 280;
+  const g = AC.createGain(); g.gain.value = 0.045;
+  s.connect(f); f.connect(g); g.connect(masterGain); s.start(t);
 }
 
 // ---------- postfx + loop ----------
@@ -325,7 +440,7 @@ addEventListener('resize', () => {
 let frames = 0, fpsTime = 0, fps = 0;
 const clock = new THREE.Clock();
 window.__gf = { ready: false, get fps() { return fps; },
-  get state() { return { lit, total: TOTAL, mode: player.mode,
+  get state() { return { lit, total: TOTAL, echoes: echoesGot, quality: qualityLevel, mode: player.mode,
     pos: { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2) } }; } };
 
 function attractCam(t) {
@@ -345,7 +460,19 @@ function tick() {
   const t = clock.elapsedTime;
 
   frames++; fpsTime += dt;
-  if (fpsTime >= 1) { fps = Math.round(frames / fpsTime); frames = 0; fpsTime = 0; }
+  if (fpsTime >= 1) {
+    fps = Math.round(frames / fpsTime); frames = 0; fpsTime = 0;
+    if (!TEST && fps > 0 && fps < 28 && qualityLevel === 2) {
+      qualityLevel = 1;
+      renderer.setPixelRatio(1);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      postfx.setSize(renderer.domElement.width, renderer.domElement.height);
+      console.log('[nave] auto-quality -> level 1 (pixelRatio 1)');
+    } else if (!TEST && fps > 0 && fps < 20 && qualityLevel === 1) {
+      qualityLevel = 0; dust.visible = false;
+      console.log('[nave] auto-quality -> level 0 (dust off)');
+    }
+  }
 
   if (player.mode === 'attract') {
     attractCam(t);
@@ -369,6 +496,7 @@ function tick() {
     collide(player.pos);
     const moving = player.vel.length() > 0.4;
     player.pos.y = 1.65 + (moving ? Math.sin(t * 9) * 0.045 : 0);
+    if (moving) { const sp2 = Math.sin(t * 9); if (stepPhase > 0 && sp2 <= 0) footstep(); stepPhase = sp2; }
     camera.position.copy(player.pos);
     camera.rotation.set(0, 0, 0);
     camera.rotateY(player.yaw); camera.rotateX(player.pitch);
@@ -389,6 +517,23 @@ function tick() {
       c.flame.material.opacity = c.pop;
       const s = c.pop * (0.9 + Math.sin(t * 17 + c.z) * 0.08);
       c.flame.scale.set(0.5 * s + 0.15, 0.85 * s + 0.2, 1);
+      const eh = (t * 0.55 + c.z * 0.13) % 1;
+      emberRef(c).position.y = 2.0 + eh * 1.1;
+      emberRef(c).material.opacity = c.pop * (1 - eh) * 0.8;
+    }
+  }
+  function emberRef(c) { return c.g.children[c.g.children.length - 1]; }
+  // echo wisp drift + collection
+  for (const e of echoes) {
+    if (e.got) continue;
+    e.s.position.set(
+      e.bx + Math.sin(t * 0.31 + e.ph) * 1.3,
+      e.by + Math.sin(t * 0.43 + e.ph * 1.7) * 0.55,
+      e.bz + Math.cos(t * 0.21 + e.ph) * 1.6);
+    if (player.mode === 'play') {
+      const dx = player.pos.x - e.s.position.x, dy = player.pos.y - e.s.position.y,
+            dz = player.pos.z - e.s.position.z;
+      if (dx*dx + dy*dy + dz*dz < 1.7*1.7) collectEcho(e);
     }
   }
 
