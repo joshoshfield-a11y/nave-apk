@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>N A V E</title>
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;background:#160d18;height:100%}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
+  #title{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:#e8cdd8;font-family:Georgia,'Times New Roman',serif;letter-spacing:.55em;text-align:center;
+    text-shadow:0 0 24px rgba(255,111,156,.35);pointer-events:none;transition:opacity 1.2s;z-index:5}
+  #title h1{font-size:clamp(28px,7vw,64px);font-weight:400;margin:0}
+  #title p{font-size:clamp(11px,2.4vw,15px);letter-spacing:.35em;opacity:.75;margin-top:14px;font-family:monospace}
+  #hud{position:fixed;top:12px;left:14px;color:#d8a7ba;font-family:monospace;font-size:14px;
+    letter-spacing:.15em;text-shadow:0 0 8px rgba(0,0,0,.8);z-index:4;user-select:none}
+  #fin{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#ffd9e4;
+    font-family:Georgia,serif;font-size:clamp(20px,4.5vw,40px);letter-spacing:.4em;z-index:6;
+    text-shadow:0 0 30px rgba(255,111,156,.8);pointer-events:none;text-align:center}
+</style></head>
+<body>
+<div id="title"><h1>N A V E</h1><p>a cathedral of echoes &mdash; click to enter</p></div>
+<div id="hud">&#10022; 0 / 7</div>
+<div id="fin">the chorus wakes</div>
+<script src="./vendor/three.min.js"></script>
+<script src="./src/postfx.js"></script>
+<script src="./src/main.js"></script>
+</body></html>
