@@ -75,6 +75,15 @@ const stoneHiMat = new THREE.MeshStandardMaterial({ color: PAL.stoneHi, roughnes
 const darkMat = new THREE.MeshStandardMaterial({ color: PAL.dark, roughness: 1 });
 const frameMat = new THREE.MeshStandardMaterial({ color: 0x4e3242, roughness: 0.92, metalness: 0.03 });
 
+const shaftTex = canvasTex(64, 256, (g, w, h) => {
+  const grd = g.createLinearGradient(0, 0, 0, h);
+  grd.addColorStop(0, 'rgba(255,190,215,0.55)'); grd.addColorStop(1, 'rgba(255,190,215,0)');
+  g.fillStyle = grd; g.beginPath();
+  g.moveTo(w*0.3, 0); g.lineTo(w*0.7, 0); g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fill();
+});
+const shaftMat = new THREE.MeshBasicMaterial({ map: shaftTex, transparent: true, opacity: 0.10,
+  blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+
 // ---------- world ----------
 const world = new THREE.Group(); scene.add(world);
 
@@ -207,14 +216,6 @@ const echoTex = canvasTex(64, 64, (g, w, h) => {
   grd.addColorStop(1, 'rgba(120,160,255,0)');
   g.fillStyle = grd; g.fillRect(0, 0, w, h);
 });
-const shaftTex = canvasTex(64, 256, (g, w, h) => {
-  const grd = g.createLinearGradient(0, 0, 0, h);
-  grd.addColorStop(0, 'rgba(255,190,215,0.55)'); grd.addColorStop(1, 'rgba(255,190,215,0)');
-  g.fillStyle = grd; g.beginPath();
-  g.moveTo(w*0.3, 0); g.lineTo(w*0.7, 0); g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fill();
-});
-const shaftMat = new THREE.MeshBasicMaterial({ map: shaftTex, transparent: true, opacity: 0.10,
-  blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
 const echoes = [];
 const LORE = [
   "the nave remembers every footstep.",
