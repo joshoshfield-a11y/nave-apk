@@ -444,7 +444,13 @@ function mpConnect() {
   });
   mp.cli.on('error', () => { mp.url++; try { mp.cli.end(true); } catch (e) {} setTimeout(mpConnect, 1500); });
 }
-mpConnect();
+function mpStart() {
+  if (typeof mqtt === 'undefined') { console.log('[nave] solo: no mqtt lib'); return; }
+  try { mpConnect(); } catch (e) { console.log('[nave] solo: bus init failed'); }
+}
+if (document.readyState === 'complete') setTimeout(mpStart, 50);
+else addEventListener('load', function () { setTimeout(mpStart, 50); });
+setTimeout(function () { if (!mp.cli) console.log('[nave] solo: no bus reachable'); }, 14000);
 const wisp = new THREE.Sprite(new THREE.SpriteMaterial({ map: echoTex,
   color: new THREE.Color(2.6, 2.6, 2.9), blending: THREE.AdditiveBlending,
   depthWrite: false, transparent: true, opacity: 0 }));
@@ -568,33 +574,35 @@ function tick() {
   }
   dustGeo.attributes.position.needsUpdate = true;
 
-  // shared presence: publish me at 2Hz, render the remote wisp
-  mp.t += dt;
-  if (mp.cli && mp.connected && mp.t > 0.5) {
-    mp.t = 0;
-    mp.cli.publish('nave/v1/user/' + mp.cid, JSON.stringify({
-      x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2),
-      z: +player.pos.z.toFixed(2), ry: +player.yaw.toFixed(2), mode: player.mode }));
-  }
-  if (mp.remote) {
-    const d = mp.remote;
-    wisp.position.set(d.x, d.y, d.z);
-    wisp.material.opacity = Math.min(0.95, wisp.material.opacity + dt * 1.5);
-    const s = 0.85 + Math.sin(t * 2.2) * 0.08;
-    wisp.scale.set(s, s, 1);
-    if (player.mode === 'play' && !mp.greeted) {
-      const dx = player.pos.x - d.x, dy = player.pos.y - d.y, dz = player.pos.z - d.z;
-      if (dx*dx + dy*dy + dz*dz < 2.6*2.6) {
-        mp.greeted = true; bell(523, 1.6, 0.16);
-        loreEl.textContent = "the wisp regards you.";
-        loreEl.style.opacity = '0.9';
-        clearTimeout(loreTimer);
-        loreTimer = setTimeout(() => loreEl.style.opacity = '0', 4000);
-      }
+  // shared presence (fault-isolated: never allowed to kill the frame loop)
+  try {
+    mp.t += dt;
+    if (mp.cli && mp.connected && mp.t > 0.5) {
+      mp.t = 0;
+      mp.cli.publish('nave/v1/user/' + mp.cid, JSON.stringify({
+        x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2),
+        z: +player.pos.z.toFixed(2), ry: +player.yaw.toFixed(2), mode: player.mode }));
     }
-  } else {
-    wisp.material.opacity = Math.max(0, wisp.material.opacity - dt);
-  }
+    if (mp.remote) {
+      const d = mp.remote;
+      wisp.position.set(d.x, d.y, d.z);
+      wisp.material.opacity = Math.min(0.95, wisp.material.opacity + dt * 1.5);
+      const s = 0.85 + Math.sin(t * 2.2) * 0.08;
+      wisp.scale.set(s, s, 1);
+      if (player.mode === 'play' && !mp.greeted) {
+        const dx = player.pos.x - d.x, dy = player.pos.y - d.y, dz = player.pos.z - d.z;
+        if (dx*dx + dy*dy + dz*dz < 2.6*2.6) {
+          mp.greeted = true; bell(523, 1.6, 0.16);
+          loreEl.textContent = "the wisp regards you.";
+          loreEl.style.opacity = '0.9';
+          clearTimeout(loreTimer);
+          loreTimer = setTimeout(function () { loreEl.style.opacity = '0'; }, 4000);
+        }
+      }
+    } else {
+      wisp.material.opacity = Math.max(0, wisp.material.opacity - dt);
+    }
+  } catch (e) { /* solo fallback: ignore bus faults */ }
   postfx.render(scene, camera, t);
   if (!window.__gf.ready) window.__gf.ready = true;
 }
