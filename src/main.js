@@ -5,6 +5,8 @@ const PAL = {
   glass: 0xff6f9c, flame: 0xffb163,
 };
 
+let stepPhase = 0;
+
 // ---------- renderer ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 const TEST = navigator.webdriver;
