@@ -133,7 +133,7 @@ for (let i = 0; i < MODULES; i++) {
     world.add(span);
     if (i % 3 === 1) {
       const glass = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 7),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(1.15, 0.4, 0.72), fog: false }));
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(0.72, 0.25, 0.46), fog: false }));
       glass.position.set(side * (X_WALL + 2.5), 3.4, z - STEP/2);
       glass.rotation.y = side > 0 ? -Math.PI/2 : Math.PI/2;
       world.add(glass);
@@ -152,6 +152,10 @@ for (let i = 0; i < MODULES; i++) {
     shaft.position.set(Math.cos(a) * 0.62, 7, Math.sin(a) * 0.62);
     col.add(shaft);
   }
+  const capBase = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.13, 6, 12), stoneHiMat);
+  capBase.rotation.x = Math.PI / 2; capBase.position.y = 0.35; col.add(capBase);
+  const capTop = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.14, 6, 12), stoneHiMat);
+  capTop.rotation.x = Math.PI / 2; capTop.position.y = 9.2; col.add(capTop);
   col.position.set(-X_WALL + 0.8, 0, z);
   world.add(col);
   colliders.push({ x: -X_WALL + 0.8, z, r: 0.85 });
