@@ -99,8 +99,8 @@ const ceil = new THREE.Mesh(new THREE.PlaneGeometry(34, 130),
 ceil.rotation.x = Math.PI / 2; ceil.position.set(0, 14, -47);
 world.add(ceil);
 for (let i = 0; i < 6; i++) {
-  const rib = new THREE.Mesh(new THREE.TorusGeometry(10.5, 0.22, 6, 24, Math.PI), frameMat);
-  rib.position.set(0, 3.4, -12 - i * 16);
+  const rib = new THREE.Mesh(new THREE.TorusGeometry(9.3, 0.3, 6, 24, Math.PI), frameMat);
+  rib.position.set(0, 4.2, -12 - i * 16);
   world.add(rib);
 }
 
@@ -133,7 +133,14 @@ for (let i = 0; i < MODULES; i++) {
     world.add(span);
     if (i % 3 === 1) {
       const glass = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 7),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(0.72, 0.25, 0.46), fog: false }));
+        new THREE.MeshBasicMaterial({ map: canvasTex(96, 160, (g, w, h) => {
+    g.fillStyle = '#ff9ec0'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#1a0d16'; g.lineWidth = 5;
+    g.strokeRect(0, 0, w, h);
+    g.beginPath(); g.moveTo(w/3, h); g.lineTo(w/3, h*0.18);
+    g.moveTo(2*w/3, h); g.lineTo(2*w/3, h*0.18); g.stroke();
+    g.beginPath(); g.arc(w/2, h*0.3, w*0.28, 0, Math.PI*2); g.stroke();
+  }), color: new THREE.Color(0.62, 0.2, 0.4), fog: false }));
       glass.position.set(side * (X_WALL + 2.5), 3.4, z - STEP/2);
       glass.rotation.y = side > 0 ? -Math.PI/2 : Math.PI/2;
       world.add(glass);
@@ -201,9 +208,9 @@ CANDLE_Z.forEach((z, i) => {
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.12, 8), stoneHiMat);
   base.position.y = 0.06; g.add(base);
   const flame = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: flameTex, color: new THREE.Color(2.2, 1.6, 1.1),
+    map: flameTex, color: new THREE.Color(1.9, 1.35, 0.95),
     blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
-  flame.position.y = 1.95; flame.scale.set(0.5, 0.85, 1); g.add(flame);
+  flame.position.y = 1.92; flame.scale.set(0.34, 0.56, 1); g.add(flame);
   const light = new THREE.PointLight(PAL.flame, 0, 20, 1.9);
   light.position.y = 2.1; g.add(light);
   const ember = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, color: new THREE.Color(2.4, 1.2, 0.6),
@@ -438,7 +445,7 @@ function footstep() {
 const mp = { cid: 'u' + Math.random().toString(36).slice(2, 8), cli: null, remote: null,
   connected: false, url: 0, t: 0, greeted: false };
 const BROKERS = ['wss://test.mosquitto.org:8081/mqtt', 'wss://broker.emqx.io:8084/mqtt',
-                 'wss://broker.hivemq.com:8884/mqtt'];
+                 'wss://broker.hivemq.com:8884/mqtt', 'ws://broker.mqttdashboard.com:8000/mqtt'];
 function mpConnect() {
   if (typeof mqtt === 'undefined' || mp.url >= BROKERS.length) return;
   try {
